@@ -9,13 +9,13 @@
         "ms-python.vscode-pylance",
         "esbenp.prettier-vscode",
         "redhat.vscode-yaml"
-      ]
-    }
-  },
-  "settings": {
-    "terminal.integrated.env.linux": {
-      "KLIPPER_DIR": "/home/codespace/klipper",
-      "CONFIG_DIR": "/home/codespace/klipper_config"
+      ],
+      "settings": {
+        "terminal.integrated.env.linux": {
+          "KLIPPER_DIR": "/home/codespace/klipper",
+          "CONFIG_DIR": "/home/codespace/klipper_config"
+        }
+      }
     }
   },
   "postCreateCommand": "pip install numpy pyserial"
