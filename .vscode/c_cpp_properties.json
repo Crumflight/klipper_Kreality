@@ -4,7 +4,9 @@
             "name": "Win32",
             "includePath": [
                 "${workspaceFolder}/**",
-                "D:/Git/VScode/klipper_Kreality/klippy/chelper"
+                "D:/Git/VScode/klipper_Kreality/klippy/chelper",
+                "D:/Git/VScode/klipper_Kreality/src",
+                "D:/Git/VScode/klipper_Kreality/lib"
             ],
             "defines": [
                 "_DEBUG",
