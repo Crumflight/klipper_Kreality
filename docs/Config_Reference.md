@@ -704,6 +704,9 @@ parameters.
 ```
 [printer]
 kinematics: hybrid_corexy
+invert_kinematics: False
+# ⚠️ Some hybrid_corexy machines with dual carriages may need to
+#   invert the kinematics if the toolheads move in reverse
 max_z_velocity:
 #   This sets the maximum velocity (in mm/s) of movement along the z
 #   axis. The default is to use max_velocity for max_z_velocity.
@@ -738,6 +741,9 @@ parameters.
 ```
 [printer]
 kinematics: hybrid_corexz
+invert_kinematics: False
+# ⚠️ Some hybrid_corexy machines with dual carriages may need to
+#   invert the kinematics if the toolheads move in reverse
 max_z_velocity:
 #   This sets the maximum velocity (in mm/s) of movement along the z
 #   axis. The default is to use max_velocity for max_z_velocity.
@@ -3318,6 +3324,12 @@ pin:
 #   input. In such a case, the PWM pin can be used normally, and e.g. a
 #   ground-switched FET(standard fan pin) can be used to control power to
 #   the fan.
+#off_below:
+#   These option is deprecated and should no longer be specified.
+#   Use `min_power` instead.
+#initial_speed:
+#   Fan speed will be set to this value on startup if specified. Value
+#   is from 0.0 to 1.0.
 ```
 
 ### [heated_fan]
@@ -3365,6 +3377,7 @@ a shutdown_speed equal to max_power.
 #tachometer_ppr:
 #tachometer_poll_interval:
 #enable_pin:
+#initial_speed:
 #   See the "fan" section for a description of the above parameters.
 #heater: extruder
 #   Name of the config section defining the heater that this fan is
@@ -3917,9 +3930,9 @@ run_current:
 #current_change_dwell_time:
 #   The amount of time (in seconds) to wait after changing homing current.
 #   The default is 0.5 seconds.
-#sense_resistor: 0.110
-#   The resistance (in ohms) of the motor sense resistor. The default
-#   is 0.110 ohms.
+sense_resistor:
+#   The resistance (in ohms) of the motor sense resistor. This
+#   parameter must be provided.
 #stealthchop_threshold: 0
 #   The velocity (in mm/s) to set the "stealthChop" threshold to. When
 #   set, "stealthChop" mode will be enabled if the stepper motor
@@ -4028,9 +4041,9 @@ run_current:
 #current_change_dwell_time:
 #   The amount of time (in seconds) to wait after changing homing current.
 #   The default is 0.5 seconds.
-#sense_resistor: 0.110
-#   The resistance (in ohms) of the motor sense resistor. The default
-#   is 0.110 ohms.
+sense_resistor:
+#   The resistance (in ohms) of the motor sense resistor. This
+#   parameter must be provided.
 #stealthchop_threshold: 0
 #   The velocity (in mm/s) to set the "stealthChop" threshold to. When
 #   set, "stealthChop" mode will be enabled if the stepper motor
@@ -4073,7 +4086,7 @@ run_current:
 #hold_current:
 #home_current:
 #current_change_dwell_time:
-#sense_resistor: 0.110
+sense_resistor:
 #stealthchop_threshold: 0
 #   See the "tmc2208" section for the definition of these parameters.
 #coolstep_threshold:
@@ -4154,7 +4167,7 @@ run_current:
 #current_change_dwell_time:
 #   The amount of time (in seconds) to wait after changing homing current.
 #   The default is 0.5 seconds.
-#sense_resistor:
+sense_resistor:
 #   The resistance (in ohms) of the motor sense resistor. This
 #   parameter must be provided.
 #idle_current_percent: 100
@@ -4379,9 +4392,9 @@ run_current:
 #current_change_dwell_time:
 #   The amount of time (in seconds) to wait after changing homing current.
 #   The default is 0.5 seconds.
-#sense_resistor: 0.075
-#   The resistance (in ohms) of the motor sense resistor. The default
-#   is 0.075 ohms.
+sense_resistor:
+#   The resistance (in ohms) of the motor sense resistor. This
+#   parameter must be provided.
 #stealthchop_threshold: 0
 #   The velocity (in mm/s) to set the "stealthChop" threshold to. When
 #   set, "stealthChop" mode will be enabled if the stepper motor
@@ -4460,6 +4473,11 @@ run_current:
 #   chip. This may be used to set custom motor parameters. The
 #   defaults for each parameter are next to the parameter name in the
 #   above list.
+#⚠️driver_s2vs_level: 6   # Short to Supply tolerance, from 4 to 15
+#⚠️driver_s2g_level: 6    # Short to Ground tolerance, from 2 to 15
+#⚠️driver_shortdelay: 0   # Short trigger delay, 0=750ns, 1=1500ns
+#⚠️driver_short_filter: 1 
+#   Short filtering bandwidth. 0=100ns, 1=1us (Default), 2=2us, 3=3us
 #diag0_pin:
 #diag1_pin:
 #   The micro-controller pin attached to one of the DIAG lines of the
