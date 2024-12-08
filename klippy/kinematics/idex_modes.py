@@ -90,6 +90,7 @@ class DualCarriages:
             enumerated_dcs.reverse()
         for i, dc_rail in enumerated_dcs:
             self.toggle_active_dc_rail(i)
+            self.toggle_active_dc_rail(i)
             kin.home_axis(homing_state, self.axis, dc_rail.get_rail())
         # Restore the original rails ordering
         self.toggle_active_dc_rail(0)

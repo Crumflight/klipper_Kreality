@@ -1,6 +1,7 @@
 # Protocol definitions for firmware communication
 #
 # Copyright (C) 2016-2024  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2016-2024  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import json, zlib, logging
@@ -201,6 +202,8 @@ def convert_msg_format(msgformat):
 class MessageFormat:
     def __init__(self, msgid_bytes, msgformat, enumerations={}):
         self.msgid_bytes = msgid_bytes
+    def __init__(self, msgid_bytes, msgformat, enumerations={}):
+        self.msgid_bytes = msgid_bytes
         self.msgformat = msgformat
         self.debugformat = convert_msg_format(msgformat)
         self.name = msgformat.split()[0]
@@ -210,17 +213,20 @@ class MessageFormat:
 
     def encode(self, params):
         out = list(self.msgid_bytes)
+        out = list(self.msgid_bytes)
         for i, t in enumerate(self.param_types):
             t.encode(out, params[i])
         return out
 
     def encode_by_name(self, **params):
         out = list(self.msgid_bytes)
+        out = list(self.msgid_bytes)
         for name, t in self.param_names:
             t.encode(out, params[name])
         return out
 
     def parse(self, s, pos):
+        pos += len(self.msgid_bytes)
         pos += len(self.msgid_bytes)
         out = {}
         for name, t in self.param_names:
@@ -249,6 +255,7 @@ class OutputFormat:
 
     def parse(self, s, pos):
         pos += len(self.msgid_bytes)
+        pos += len(self.msgid_bytes)
         out = []
         for t in self.param_types:
             v, pos = t.parse(s, pos)
@@ -267,6 +274,7 @@ class UnknownFormat:
 
     def parse(self, s, pos):
         msgid, param_pos = PT_int32().parse(s, pos)
+        msgid, param_pos = PT_int32().parse(s, pos)
         msg = bytes(bytearray(s))
         return {"#msgid": msgid, "#msg": msg}, len(s) - MESSAGE_TRAILER_SIZE
 
@@ -284,6 +292,8 @@ class MessageParser:
         self.messages = []
         self.messages_by_id = {}
         self.messages_by_name = {}
+        self.msgid_by_format = {}
+        self.msgid_parser = PT_int32()
         self.msgid_by_format = {}
         self.msgid_parser = PT_int32()
         self.config = {}
@@ -323,6 +333,7 @@ class MessageParser:
         pos = MESSAGE_HEADER_SIZE
         while 1:
             msgid, param_pos = self.msgid_parser.parse(s, pos)
+            msgid, param_pos = self.msgid_parser.parse(s, pos)
             mid = self.messages_by_id.get(msgid, self.unknown)
             params, pos = mid.parse(s, pos)
             out.append(mid.format_params(params))
@@ -341,6 +352,7 @@ class MessageParser:
         return str(params)
 
     def parse(self, s):
+        msgid, param_pos = self.msgid_parser.parse(s, MESSAGE_HEADER_SIZE)
         msgid, param_pos = self.msgid_parser.parse(s, MESSAGE_HEADER_SIZE)
         mid = self.messages_by_id.get(msgid, self.unknown)
         params, pos = mid.parse(s, MESSAGE_HEADER_SIZE)
@@ -454,6 +466,7 @@ class MessageParser:
                     msgid_bytes, msgformat
                 )
             else:
+                msg = MessageFormat(msgid_bytes, msgformat, self.enumerations)
                 msg = MessageFormat(msgid_bytes, msgformat, self.enumerations)
                 self.messages_by_id[msgid] = msg
                 self.messages_by_name[msg.name] = msg

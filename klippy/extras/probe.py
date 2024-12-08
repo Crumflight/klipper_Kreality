@@ -1,6 +1,6 @@
 # Z-Probe support
 #
-# Copyright (C) 2017-2021  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2017-2024  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
@@ -18,7 +18,6 @@ can travel further (the Z minimum position can be negative).
 class PrinterProbe:
     def __init__(self, config, mcu_probe):
         self.printer = config.get_printer()
-        self.name = config.get_name()
         self.mcu_probe = mcu_probe
         self.speed = config.getfloat("speed", 5.0, above=0.0)
         self.lift_speed = config.getfloat("lift_speed", self.speed, above=0.0)
@@ -235,8 +234,8 @@ class PrinterProbe:
             positions.append(pos)
             # Check samples tolerance
             z_positions = [p[2] for p in positions]
-            if max(z_positions) - min(z_positions) > samples_tolerance:
-                if retries >= samples_retries:
+            if max(z_positions)-min(z_positions) > params['samples_tolerance']:
+                if retries >= params['samples_tolerance_retries']:
                     raise gcmd.error("Probe samples exceed samples_tolerance")
                 gcmd.respond_info("Probe samples exceed tolerance. Retrying...")
                 retries += 1
@@ -614,4 +613,4 @@ class ProbePointsHelper:
 
 
 def load_config(config):
-    return PrinterProbe(config, ProbeEndstopWrapper(config))
+    return PrinterProbe(config)

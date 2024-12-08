@@ -1,6 +1,6 @@
 # Interface to Klipper micro-controller code
 #
-# Copyright (C) 2016-2023  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2016-2024  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
@@ -366,6 +366,9 @@ class TriggerDispatch:
         err_res = [r for r in res if r >= MCU_trsync.REASON_COMMS_TIMEOUT]
         if err_res:
             return err_res[0]
+        err_res = [r for r in res if r >= MCU_trsync.REASON_COMMS_TIMEOUT]
+        if err_res:
+            return err_res[0]
         return res[0]
 
 
@@ -444,6 +447,9 @@ class MCU_endstop:
         self._dispatch.wait_end(home_end_time)
         self._home_cmd.send([self._oid, 0, 0, 0, 0, 0, 0, 0])
         res = self._dispatch.stop()
+        if res >= MCU_trsync.REASON_COMMS_TIMEOUT:
+            cmderr = self._mcu.get_printer().command_error
+            raise cmderr("Communication timeout during homing")
         if res >= MCU_trsync.REASON_COMMS_TIMEOUT:
             cmderr = self._mcu.get_printer().command_error
             raise cmderr("Communication timeout during homing")
@@ -736,6 +742,7 @@ class MCU:
 
     def __init__(self, config, clocksync):
         self._config = config
+        self._config = config
         self._printer = printer = config.get_printer()
         self.danger_options = printer.lookup_object("danger_options")
         self.gcode = printer.lookup_object("gcode")
@@ -837,6 +844,7 @@ class MCU:
         printer.register_event_handler("klippy:shutdown", self._shutdown)
         printer.register_event_handler("klippy:disconnect", self._disconnect)
         printer.register_event_handler("klippy:ready", self._ready)
+
 
     # Serial callbacks
     def _handle_mcu_stats(self, params):
@@ -974,7 +982,36 @@ class MCU:
         else:
             return eventtime + self.reconnect_interval
 
+
+    def handle_non_critical_disconnect(self):
+        self.non_critical_disconnected = True
+        self._clocksync.disconnect()
+        self._disconnect()
+        self._reactor.update_timer(
+            self.non_critical_recon_timer, self._reactor.NOW
+        )
+        self._printer.send_event(self._non_critical_disconnect_event_name)
+        self.gcode.respond_info(f"mcu: '{self._name}' disconnected!", log=True)
+
+    def non_critical_recon_event(self, eventtime):
+        success = self.recon_mcu()
+        if success:
+            self.gcode.respond_info(
+                f"mcu: '{self._name}' reconnected!", log=True
+            )
+            return self._reactor.NEVER
+        else:
+            return eventtime + self.reconnect_interval
+
     def _send_config(self, prev_crc):
+        if not self._cached_init_state:
+            # first time config, we haven't created callback oids yet
+            # so save the oid count for state reset later
+            self._oid_count_post_inits = self._oid_count
+            self._config_cmds_post_inits = self._config_cmds.copy()
+            self._init_cmds_post_inits = self._init_cmds.copy()
+            self._restart_cmds_post_inits = self._restart_cmds.copy()
+            self._cached_init_state = True
         if not self._cached_init_state:
             # first time config, we haven't created callback oids yet
             # so save the oid count for state reset later
@@ -1087,7 +1124,33 @@ class MCU:
         self._reserved_move_slots = 0
         self._steppersync = None
 
+
+    def recon_mcu(self):
+        res = self._mcu_identify()
+        if not res:
+            return False
+        self.reset_to_initial_state()
+        self.non_critical_disconnected = False
+        self._connect()
+        self._printer.send_event(self._non_critical_reconnect_event_name)
+        return True
+
+    def reset_to_initial_state(self):
+        if self._cached_init_state:
+            self._oid_count = self._oid_count_post_inits
+            self._config_cmds = self._config_cmds_post_inits.copy()
+            self._init_cmds = self._init_cmds_post_inits.copy()
+            self._restart_cmds = self._restart_cmds_post_inits.copy()
+        self._reserved_move_slots = 0
+        self._steppersync = None
+
     def _connect(self):
+        if self.non_critical_disconnected:
+            self._reactor.update_timer(
+                self.non_critical_recon_timer,
+                self._reactor.NOW + self.reconnect_interval,
+            )
+            return
         if self.non_critical_disconnected:
             self._reactor.update_timer(
                 self.non_critical_recon_timer,
@@ -1146,6 +1209,11 @@ class MCU:
         return self._serial.check_connect(self._serialport, self._baud, rts)
 
     def _mcu_identify(self):
+        if self.is_non_critical and not self._check_serial_exists():
+            self.non_critical_disconnected = True
+            return False
+        else:
+            self.non_critical_disconnected = False
         if self.is_non_critical and not self._check_serial_exists():
             self.non_critical_disconnected = True
             return False
@@ -1273,6 +1341,13 @@ class MCU:
 
     def get_name(self):
         return self._name
+
+    def get_non_critical_reconnect_event_name(self):
+        return self._non_critical_reconnect_event_name
+
+    def get_non_critical_disconnect_event_name(self):
+        return self._non_critical_disconnect_event_name
+
 
     def get_non_critical_reconnect_event_name(self):
         return self._non_critical_reconnect_event_name

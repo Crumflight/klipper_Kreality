@@ -19,7 +19,7 @@ class MCU_scaled_adc:
         qname = main.name + ":" + pin_params["pin"]
         query_adc.register_adc(qname, self._mcu_adc)
         self._callback = None
-        self.setup_minmax = self._mcu_adc.setup_minmax
+        self.setup_adc_sample = self._mcu_adc.setup_adc_sample
         self.get_mcu = self._mcu_adc.get_mcu
 
     def _handle_callback(self, read_time, read_value):

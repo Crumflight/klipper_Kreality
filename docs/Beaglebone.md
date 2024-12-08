@@ -38,7 +38,7 @@ Install Klipper by running the following
 commands:
 
 ```
-git clone https://github.com/DangerKlippers/danger-klipper
+git clone https://github.com/Klipper3d/klipper
 ./klipper/scripts/install-beaglebone.sh
 ```
 

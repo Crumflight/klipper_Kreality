@@ -16,8 +16,10 @@ class error(Exception):
 
 class SerialReader:
     def __init__(self, reactor, warn_prefix="", mcu=None):
+    def __init__(self, reactor, warn_prefix="", mcu=None):
         self.reactor = reactor
         self.warn_prefix = warn_prefix
+        self.mcu = mcu
         self.mcu = mcu
         # Serial port
         self.serial_dev = None
@@ -319,6 +321,18 @@ class SerialReader:
         serial_dev.close()
         return True
 
+
+    def check_connect(self, serialport, baud, rts=True):
+        serial_dev = serial.Serial(baudrate=baud, timeout=0, exclusive=False)
+        serial_dev.port = serialport
+        serial_dev.rts = rts
+        try:
+            serial_dev.open()
+        except Exception:
+            return False
+        serial_dev.close()
+        return True
+
     def connect_file(self, debugoutput, dictionary, pace=False):
         self.serial_dev = debugoutput
         self.msgparser.process_identify(dictionary, decompress=False)
@@ -377,6 +391,11 @@ class SerialReader:
         if self.mcu is not None and self.mcu.non_critical_disconnected:
             self._error("non-critical MCU is disconnected")
 
+
+    def _check_noncritical_disconnected(self):
+        if self.mcu is not None and self.mcu.non_critical_disconnected:
+            self._error("non-critical MCU is disconnected")
+
     # Command sending
     def raw_send(self, cmd, minclock, reqclock, cmd_queue):
         self._check_noncritical_disconnected()
@@ -386,7 +405,17 @@ class SerialReader:
             self.serialqueue, cmd_queue, cmd, len(cmd), minclock, reqclock, 0
         )
 
+        self._check_noncritical_disconnected()
+        if self.serialqueue is None:
+            return
+        self.ffi_lib.serialqueue_send(
+            self.serialqueue, cmd_queue, cmd, len(cmd), minclock, reqclock, 0
+        )
+
     def raw_send_wait_ack(self, cmd, minclock, reqclock, cmd_queue):
+        self._check_noncritical_disconnected()
+        if self.serialqueue is None:
+            return
         self._check_noncritical_disconnected()
         if self.serialqueue is None:
             return

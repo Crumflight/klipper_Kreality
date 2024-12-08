@@ -351,6 +351,31 @@ class BedMesh:
             gcode_move.reset_last_position()
         else:
             gcmd.respond_info("No mesh loaded to offset")
+    def _handle_dump_request(self, web_request):
+        eventtime = self.printer.get_reactor().monotonic()
+        prb = self.printer.lookup_object("probe", None)
+        th_sts = self.printer.lookup_object("toolhead").get_status(eventtime)
+        result = {"current_mesh": {}, "profiles": self.pmgr.get_profiles()}
+        if self.z_mesh is not None:
+            result["current_mesh"] = {
+                "name": self.z_mesh.get_profile_name(),
+                "probed_matrix": self.z_mesh.get_probed_matrix(),
+                "mesh_matrix": self.z_mesh.get_mesh_matrix(),
+                "mesh_params": self.z_mesh.get_mesh_params()
+            }
+        mesh_args = web_request.get_dict("mesh_args", {})
+        gcmd = None
+        if mesh_args:
+            gcmd = self.gcode.create_gcode_command("", "", mesh_args)
+            with self.gcode.get_mutex():
+                result["calibration"] = self.bmc.dump_calibration(gcmd)
+        else:
+            result["calibration"] = self.bmc.dump_calibration()
+        offsets = [0, 0, 0] if prb is None else prb.get_offsets()
+        result["probe_offsets"] = offsets
+        result["axis_minimum"] = th_sts["axis_minimum"]
+        result["axis_maximum"] = th_sts["axis_maximum"]
+        web_request.send(result)
 
 
 class ZrefMode:
@@ -377,7 +402,16 @@ class BedMeshCalibrate:
         self.bedmesh = bedmesh
         self.mesh_config = collections.OrderedDict()
         self._init_mesh_config(config)
-        self._generate_points(config.error)
+        self.probe_mgr = ProbeManager(
+            config, self.orig_config, self.probe_finalize
+        )
+        try:
+            self.probe_mgr.generate_points(
+                self.mesh_config, self.mesh_min, self.mesh_max,
+                self.radius, self.origin
+            )
+        except BedMeshError as e:
+            raise config.error(str(e))
         self._profile_name = "default"
         self.probe_helper = probe.ProbePointsHelper(
             config, self.probe_finalize, self._get_adjusted_points()
@@ -522,9 +556,10 @@ class BedMeshCalibrate:
         if self.zero_ref_pos is not None:
             print_func(
                 "bed_mesh: zero_reference_position is (%.2f, %.2f)"
-                % (self.zero_ref_pos[0], self.zero_ref_pos[1])
+                % (zero_ref_pos[0], zero_ref_pos[1])
             )
-        if self.substituted_indices:
+        substitutes = self.probe_mgr.get_substitutes()
+        if substitutes:
             print_func("bed_mesh: faulty region points")
             for i, v in self.substituted_indices.items():
                 pt = self.points[i]
@@ -852,7 +887,10 @@ class BedMeshCalibrate:
 
         if need_cfg_update:
             self._verify_algorithm(gcmd.error)
-            self._generate_points(gcmd.error, probe_method)
+            self.probe_mgr.generate_points(
+                self.mesh_config, self.mesh_min, self.mesh_max,
+                self.radius, self.origin, probe_method
+            )
             gcmd.respond_info("Generating new points...")
             self.print_generated_points(gcmd.respond_info)
             pts = self._get_adjusted_points()
@@ -904,6 +942,7 @@ class BedMeshCalibrate:
                 % (ref_pos[0], ref_pos[1], ref_pos[2])
             )
             z_offset = ref_pos[2]
+        base_points = self.probe_mgr.get_base_points()
         params = dict(self.mesh_config)
         params["min_x"] = min(positions, key=lambda p: p[0])[0] + x_offset
         params["max_x"] = max(positions, key=lambda p: p[0])[0] + x_offset
@@ -912,15 +951,17 @@ class BedMeshCalibrate:
         x_cnt = params["x_count"]
         y_cnt = params["y_count"]
 
-        if self.substituted_indices:
+        substitutes = self.probe_mgr.get_substitutes()
+        probed_pts = positions
+        if substitutes:
             # Replace substituted points with the original generated
             # point.  Its Z Value is the average probed Z of the
             # substituted points.
             corrected_pts = []
             idx_offset = 0
             start_idx = 0
-            for i, pts in self.substituted_indices.items():
-                fpt = [p - o for p, o in zip(self.points[i], offsets[:2])]
+            for i, pts in substitutes.items():
+                fpt = [p - o for p, o in zip(base_points[i], offsets[:2])]
                 # offset the index to account for additional samples
                 idx = i + idx_offset
                 # Add "normal" points
@@ -969,10 +1010,10 @@ class BedMeshCalibrate:
                 row = []
             if pos[0] > prev_pos[0]:
                 # probed in the positive direction
-                row.append(pos[2] - z_offset)
+                row.append(z_pos)
             else:
                 # probed in the negative direction
-                row.insert(0, pos[2] - z_offset)
+                row.insert(0, z_pos)
             prev_pos = pos
         # append last row
         probed_matrix.append(row)
@@ -1021,11 +1062,12 @@ class BedMeshCalibrate:
             z_mesh.build_mesh(probed_matrix)
         except BedMeshError as e:
             raise self.gcode.error(str(e))
-        if self.zero_reference_mode == ZrefMode.IN_MESH:
+        if self.probe_mgr.get_zero_ref_mode() == ZrefMode.IN_MESH:
             # The reference can be anywhere in the mesh, therefore
             # it is necessary to set the reference after the initial mesh
             # is generated to lookup the correct z value.
-            z_mesh.set_zero_reference(*self.zero_ref_pos)
+            zero_ref_pos = self.probe_mgr.get_zero_ref_pos()
+            z_mesh.set_zero_reference(*zero_ref_pos)
         self.bedmesh.set_mesh(z_mesh)
         self.gcode.respond_info("Mesh Bed Leveling Complete")
         if self._profile_name is not None:
@@ -1034,15 +1076,16 @@ class BedMeshCalibrate:
     def _dump_points(self, probed_pts, corrected_pts, offsets):
         # logs generated points with offset applied, points received
         # from the finalize callback, and the list of corrected points
-        max_len = max([len(self.points), len(probed_pts), len(corrected_pts)])
+        points = self.probe_mgr.get_base_points()
+        max_len = max([len(points), len(probed_pts), len(corrected_pts)])
         logging.info(
             "bed_mesh: calibration point dump\nIndex | %-17s| %-25s|"
             " Corrected Point" % ("Generated Point", "Probed Point")
         )
         for i in list(range(max_len)):
             gen_pt = probed_pt = corr_pt = ""
-            if i < len(self.points):
-                off_pt = [p - o for p, o in zip(self.points[i], offsets[:2])]
+            if i < len(points):
+                off_pt = [p - o for p, o in zip(points[i], offsets[:2])]
                 gen_pt = "(%.2f, %.2f)" % tuple(off_pt)
             if i < len(probed_pts):
                 probed_pt = "(%.2f, %.2f, %.4f)" % tuple(probed_pts[i])

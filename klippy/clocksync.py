@@ -24,10 +24,10 @@ class ClockSync:
         self.min_half_rtt = 999999999.9
         self.min_rtt_time = 0.0
         # Linear regression of mcu clock and system sent_time
-        self.time_avg = self.time_variance = 0.0
-        self.clock_avg = self.clock_covariance = 0.0
-        self.prediction_variance = 0.0
-        self.last_prediction_time = 0.0
+        self.time_avg = self.time_variance = 0.
+        self.clock_avg = self.clock_covariance = 0.
+        self.prediction_variance = 0.
+        self.last_prediction_time = 0.
 
     def disconnect(self):
         self.reactor.update_timer(self.get_clock_timer, self.reactor.NEVER)

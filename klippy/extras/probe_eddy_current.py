@@ -13,6 +13,7 @@ class EddyCalibration:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.name = config.get_name()
+        self.drift_comp = DummyDriftCompensation()
         # Current calibration data
         self.cal_freqs = []
         self.cal_zpos = []
@@ -45,12 +46,14 @@ class EddyCalibration:
         self.cal_zpos = [c[1] for c in cal]
 
     def apply_calibration(self, samples):
+        cur_temp = self.drift_comp.get_temperature()
         for i, (samp_time, freq, dummy_z) in enumerate(samples):
-            pos = bisect.bisect(self.cal_freqs, freq)
+            adj_freq = self.drift_comp.adjust_freq(freq, cur_temp)
+            pos = bisect.bisect(self.cal_freqs, adj_freq)
             if pos >= len(self.cal_zpos):
-                zpos = -99.9
+                zpos = -OUT_OF_RANGE
             elif pos == 0:
-                zpos = 99.9
+                zpos = OUT_OF_RANGE
             else:
                 # XXX - could further optimize and avoid div by zero
                 this_freq = self.cal_freqs[pos]
@@ -59,7 +62,7 @@ class EddyCalibration:
                 prev_zpos = self.cal_zpos[pos - 1]
                 gain = (this_zpos - prev_zpos) / (this_freq - prev_freq)
                 offset = prev_zpos - prev_freq * gain
-                zpos = freq * gain + offset
+                zpos = adj_freq * gain + offset
             samples[i] = (samp_time, freq, round(zpos, 6))
 
     def height_to_freq(self, height):
@@ -102,11 +105,14 @@ class EddyCalibration:
         start_pos = toolhead.get_position()
         times = []
         for zpos in req_zpos:
+        for zpos in req_zpos:
             # Move to next position (always descending to reduce backlash)
             hop_pos = list(start_pos)
             hop_pos[2] += zpos + 0.500
+            hop_pos[2] += zpos + 0.500
             move(hop_pos, move_speed)
             next_pos = list(start_pos)
+            next_pos[2] += zpos
             next_pos[2] += zpos
             move(next_pos, move_speed)
             # Note sample timing
@@ -123,6 +129,7 @@ class EddyCalibration:
             times.append((start_query_time, end_query_time, kin_pos[2]))
         toolhead.dwell(1.0)
         toolhead.wait_moves()
+        self.drift_comp.note_z_calibration_finish()
         # Finish data collection
         is_finished = True
         # Correlate query responses
@@ -209,7 +216,7 @@ class EddyCalibration:
         )
 
 
-# Helper for implementing PROBE style commands
+# Helper for implementing PROBE style commands (descend until trigger)
 class EddyEndstopWrapper:
     REASON_SENSOR_ERROR = mcu.MCU_trsync.REASON_COMMS_TIMEOUT + 1
 
@@ -284,7 +291,6 @@ class EddyEndstopWrapper:
     def home_wait(self, home_end_time):
         self._dispatch.wait_end(home_end_time)
         trigger_time = self._sensor_helper.clear_home()
-        self._stop_measurements(is_home=True)
         res = self._dispatch.stop()
         if res >= mcu.MCU_trsync.REASON_COMMS_TIMEOUT:
             raise self._printer.command_error(

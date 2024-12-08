@@ -120,6 +120,7 @@ class MPU9250:
 
     def start_internal_client(self):
         self.check_connected()
+        self.check_connected()
         aqh = adxl345.AccelQueryHelper(self.printer)
         self.batch_bulk.add_client(aqh.handle_batch)
         return aqh

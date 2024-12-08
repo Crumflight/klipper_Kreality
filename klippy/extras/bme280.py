@@ -52,6 +52,29 @@ BMP388_REG_VAL_ODR_50_HZ = 0x02
 BMP388_REG_VAL_DRDY_EN = 0b100000
 BMP388_REG_VAL_NORMAL_MODE = 0x30
 
+BMP388_REGS = {
+    "CMD": 0x7E,
+    "STATUS": 0x03,
+    "PWR_CTRL": 0x1B,
+    "OSR": 0x1C,
+    "ORD": 0x1D,
+    "INT_CTRL": 0x19,
+    "CAL_1": 0x31,
+    "TEMP_MSB": 0x09,
+    "TEMP_LSB": 0x08,
+    "TEMP_XLSB": 0x07,
+    "PRESS_MSB": 0x06,
+    "PRESS_LSB": 0x05,
+    "PRESS_XLSB": 0x04,
+}
+BMP388_REG_VAL_PRESS_EN = 0x01
+BMP388_REG_VAL_TEMP_EN = 0x02
+BMP388_REG_VAL_PRESS_OS_NO = 0b000
+BMP388_REG_VAL_TEMP_OS_NO = 0b000000
+BMP388_REG_VAL_ODR_50_HZ = 0x02
+BMP388_REG_VAL_DRDY_EN = 0b100000
+BMP388_REG_VAL_NORMAL_MODE = 0x30
+
 BME680_REGS = {
     "RESET": 0xE0,
     "CTRL_HUM": 0x72,
@@ -129,6 +152,7 @@ BME_CHIPS = {
     0x50: "BMP388",
 }
 BME_CHIP_ID_REG = 0xD0
+BMP3_CHIP_ID_REG = 0x00
 BMP3_CHIP_ID_REG = 0x00
 
 
@@ -320,6 +344,7 @@ class BME280:
             dig["MD"] = get_signed_short_msb(calib_data_1[20:22])
             return dig
 
+        chip_id = self.read_id() or self.read_bmp3_id()
         chip_id = self.read_id() or self.read_bmp3_id()
         if chip_id not in BME_CHIPS.keys():
             logging.info("bme280: Unknown Chip ID received %#x" % chip_id)
@@ -850,6 +875,18 @@ class BME280:
     def read_id(self):
         # read chip id register
         regs = [BME_CHIP_ID_REG]
+        params = self.i2c.i2c_read(regs, 1)
+        return bytearray(params["response"])[0]
+
+    def read_bmp3_id(self):
+        # read chip id register
+        regs = [BMP3_CHIP_ID_REG]
+        params = self.i2c.i2c_read(regs, 1)
+        return bytearray(params["response"])[0]
+
+    def read_bmp3_id(self):
+        # read chip id register
+        regs = [BMP3_CHIP_ID_REG]
         params = self.i2c.i2c_read(regs, 1)
         return bytearray(params["response"])[0]
 

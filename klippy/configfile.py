@@ -131,9 +131,7 @@ class ConfigWrapper:
         )
 
     def getchoice(self, option, choices, default=sentinel, note_valid=True):
-        if isinstance(choices, list):
-            choices = {i: i for i in choices}
-        if choices and isinstance(list(choices.keys())[0], int):
+        if choices and type(list(choices.keys())[0]) == int:
             c = self.getint(option, default, note_valid=note_valid)
         else:
             c = self.get(option, default, note_valid=note_valid)
@@ -485,7 +483,7 @@ class PrinterConfig:
     # Status reporting
     def runtime_warning(self, msg):
         logging.warning(msg)
-        res = {"type": "runtime_warning", "message": msg}
+        res = {'type': 'runtime_warning', 'message': msg}
         self.runtime_warnings.append(res)
         self.status_warnings = self.runtime_warnings + self.deprecate_warnings
 

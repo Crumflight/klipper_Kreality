@@ -5,7 +5,7 @@
 # This file may be distributed under the terms of the GNU GPLv3 license.
 
 import math
-from . import manual_probe as ManualProbe, bed_mesh as BedMesh
+from . import manual_probe, bed_mesh, probe
 
 
 DEFAULT_SAMPLE_COUNT = 3
@@ -42,10 +42,13 @@ class AxisTwistCompensation:
 
         # setup calibrater
         self.calibrater = Calibrater(self, config)
+        # register events
+        self.printer.register_event_handler("probe:update_results",
+                                            self._update_z_compensation_value)
 
-    def get_z_compensation_value(self, pos):
+    def _update_z_compensation_value(self, pos):
         if not self.z_compensations:
-            return 0
+            return
 
         x_coord = pos[0]
         z_compensations = self.z_compensations
@@ -55,7 +58,7 @@ class AxisTwistCompensation:
         )
         interpolate_t = (x_coord - self.calibrate_start_x) / spacing
         interpolate_i = int(math.floor(interpolate_t))
-        interpolate_i = BedMesh.constrain(interpolate_i, 0, sample_count - 2)
+        interpolate_i = bed_mesh.constrain(interpolate_i, 0, sample_count - 2)
         interpolate_t -= interpolate_i
         interpolated_z_compensation = BedMesh.lerp(
             interpolate_t,
@@ -152,7 +155,7 @@ class Calibrater:
         )
 
         # verify no other manual probe is in progress
-        ManualProbe.verify_no_manual_probe(self.printer)
+        manual_probe.verify_no_manual_probe(self.printer)
 
         # begin calibration
         self.current_point_index = 0
@@ -213,7 +216,8 @@ class Calibrater:
         )
 
         # probe the point
-        self.current_measured_z = self.probe.run_probe(self.gcmd)[2]
+        pos = probe.run_single_probe(self.probe, self.gcmd)
+        self.current_measured_z = pos[2]
 
         # horizontal_move_z (to prevent probe trigger or hitting bed)
         self._move_helper((None, None, self.horizontal_move_z))

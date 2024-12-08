@@ -182,6 +182,7 @@ class LDC1612:
 
     def clear_home(self):
         self.ldc1612_setup_home_cmd.send([self.oid, 0, 0, 0, 0, 0])
+        self.ldc1612_setup_home_cmd.send([self.oid, 0, 0, 0, 0, 0])
         if self.mcu.is_fileoutput():
             return 0.0
         params = self.query_ldc1612_home_state_cmd.send([self.oid])

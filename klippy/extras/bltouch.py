@@ -1,6 +1,6 @@
 # BLTouch support
 #
-# Copyright (C) 2018-2021  Kevin O'Connor <kevin@koconnor.net>
+# Copyright (C) 2018-2024  Kevin O'Connor <kevin@koconnor.net>
 #
 # This file may be distributed under the terms of the GNU GPLv3 license.
 import logging
@@ -34,7 +34,7 @@ Commands = {
 
 
 # BLTouch "endstop" wrapper
-class BLTouchEndstopWrapper:
+class BLTouchProbe:
     def __init__(self, config):
         self.printer = config.get_printer()
         self.printer.register_event_handler(
@@ -82,6 +82,13 @@ class BLTouchEndstopWrapper:
         self.get_steppers = self.mcu_endstop.get_steppers
         self.home_wait = self.mcu_endstop.home_wait
         self.query_endstop = self.mcu_endstop.query_endstop
+        # multi probes state
+        self.multi = 'OFF'
+        # Common probe implementation helpers
+        self.cmd_helper = probe.ProbeCommandHelper(
+            config, self, self.mcu_endstop.query_endstop)
+        self.probe_offsets = probe.ProbeOffsetsHelper(config)
+        self.probe_session = probe.ProbeSessionHelper(config, self)
         # Register BLTOUCH_DEBUG command
         self.gcode = self.printer.lookup_object("gcode")
         self.gcode.register_command(

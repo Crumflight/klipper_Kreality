@@ -527,6 +527,14 @@ class TMCCommandHelper:
                 )
             else:
                 self._init_registers()
+            if self.mcu_tmc.mcu.non_critical_disconnected:
+                logging.info(
+                    "TMC %s failed to init - non_critical_mcu: %s is disconnected!",
+                    self.name,
+                    self.mcu_tmc.mcu.get_name(),
+                )
+            else:
+                self._init_registers()
         except self.printer.command_error as e:
             logging.info("TMC %s failed to init: %s", self.name, str(e))
 
@@ -614,6 +622,7 @@ class TMCVirtualPinHelper:
         self.mcu_endstop = None
         self.en_pwm = False
         self.pwmthrs = self.coolthrs = self.thigh = 0
+        self.pwmthrs = self.coolthrs = self.thigh = 0
         # Register virtual_endstop pin
         name_parts = config.get_name().split()
         ppins = self.printer.lookup_object("pins")
@@ -642,6 +651,7 @@ class TMCVirtualPinHelper:
         if self.mcu_endstop not in hmove.get_mcu_endstops():
             return
         # Enable/disable stealthchop
+        # Enable/disable stealthchop
         self.pwmthrs = self.fields.get_field("tpwmthrs")
         reg = self.fields.lookup_register("en_pwm_mode", None)
         if reg is None:
@@ -658,6 +668,8 @@ class TMCVirtualPinHelper:
         self.mcu_tmc.set_register("GCONF", val)
         # Enable tcoolthrs (if not already)
         self.coolthrs = self.fields.get_field("tcoolthrs")
+        # Enable tcoolthrs (if not already)
+        self.coolthrs = self.fields.get_field("tcoolthrs")
         if self.coolthrs == 0:
             tc_val = self.fields.set_field("tcoolthrs", 0xFFFFF)
             self.mcu_tmc.set_register("TCOOLTHRS", tc_val)
@@ -672,6 +684,7 @@ class TMCVirtualPinHelper:
         if self.mcu_endstop not in hmove.get_mcu_endstops():
             return
         # Restore stealthchop/spreadcycle
+        # Restore stealthchop/spreadcycle
         reg = self.fields.lookup_register("en_pwm_mode", None)
         if reg is None:
             tp_val = self.fields.set_field("tpwmthrs", self.pwmthrs)
@@ -682,8 +695,14 @@ class TMCVirtualPinHelper:
             val = self.fields.set_field(self.diag_pin_field, 0)
         self.mcu_tmc.set_register("GCONF", val)
         # Restore tcoolthrs
+        # Restore tcoolthrs
         tc_val = self.fields.set_field("tcoolthrs", self.coolthrs)
         self.mcu_tmc.set_register("TCOOLTHRS", tc_val)
+        # Restore thigh
+        reg = self.fields.lookup_register("thigh", None)
+        if reg is not None:
+            th_val = self.fields.set_field("thigh", self.thigh)
+            self.mcu_tmc.set_register(reg, th_val)
         # Restore thigh
         reg = self.fields.lookup_register("thigh", None)
         if reg is not None:
@@ -753,7 +772,7 @@ def TMCtstepHelper(mcu_tmc, velocity, pstepper=None, config=None):
 
 
 # Helper to configure stealthChop-spreadCycle transition velocity
-def TMCStealthchopHelper(config, mcu_tmc, tmc_freq):
+def TMCStealthchopHelper(config, mcu_tmc):
     fields = mcu_tmc.get_fields()
     en_pwm_mode = False
     velocity = config.getfloat("stealthchop_threshold", None, minval=0.0)
@@ -761,6 +780,7 @@ def TMCStealthchopHelper(config, mcu_tmc, tmc_freq):
 
     if velocity is not None:
         en_pwm_mode = True
+        tpwmthrs = TMCtstepHelper(mcu_tmc, velocity, config=config)
         tpwmthrs = TMCtstepHelper(mcu_tmc, velocity, config=config)
     fields.set_field("tpwmthrs", tpwmthrs)
 

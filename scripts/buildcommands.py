@@ -336,6 +336,7 @@ class HandleCommandGeneration:
     def create_message_ids(self):
         # Create unique ids for each message type
         encoded_msgid = max(self.msg_to_encid.values())
+        encoded_msgid = max(self.msg_to_encid.values())
         mlist = list(self.commands.keys()) + [m for n, m in self.encoders]
         for msgname in mlist:
             msg = self.messages_by_name.get(msgname, msgname)
@@ -402,6 +403,7 @@ class HandleCommandGeneration:
         out = """
     // %s
     .encoded_msgid=%d, // msgid=%d
+    .encoded_msgid=%d, // msgid=%d
     .num_params=%d,
     .param_types = %s,
 """ % (
@@ -439,6 +441,8 @@ class HandleCommandGeneration:
         encoder_code = []
         did_output = {}
         for msgname, msg in self.encoders:
+            encoded_msgid = self.msg_to_encid[msg]
+            if encoded_msgid in did_output:
             encoded_msgid = self.msg_to_encid[msg]
             if encoded_msgid in did_output:
                 continue
@@ -483,8 +487,11 @@ ctr_lookup_output(const char *str)
     def generate_commands_code(self):
         cmd_by_encid = {
             self.msg_to_encid[self.messages_by_name.get(msgname, msgname)]: cmd
+        cmd_by_encid = {
+            self.msg_to_encid[self.messages_by_name.get(msgname, msgname)]: cmd
             for msgname, cmd in self.commands.items()
         }
+        max_cmd_encid = max(cmd_by_encid.keys())
         max_cmd_encid = max(cmd_by_encid.keys())
         index = []
         externs = {}
@@ -492,6 +499,7 @@ ctr_lookup_output(const char *str)
             if encoded_msgid not in cmd_by_encid:
                 index.append(" {\n},")
                 continue
+            funcname, flags, msgname = cmd_by_encid[encoded_msgid]
             funcname, flags, msgname = cmd_by_encid[encoded_msgid]
             msg = self.messages_by_name[msgname]
             externs[funcname] = 1
@@ -514,6 +522,7 @@ const struct command_parser command_index[] PROGMEM = {
 %s
 };
 
+const uint16_t command_index_size PROGMEM = ARRAY_SIZE(command_index);
 const uint16_t command_index_size PROGMEM = ARRAY_SIZE(command_index);
 """
         return fmt % (externs, index)
